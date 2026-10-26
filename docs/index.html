@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VerifyBench</title>
+<meta name="description" content="Benchmarking 10 identity verification APIs on latency and success rate, and tracing why verifications fail.">
+<style>
+:root { --ink:#111827; --muted:#4B5563; --line:#E5E7EB; --acc:#C2410C; --bg:#FFFFFF; --soft:#F9FAFB; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+main { max-width:860px; margin:0 auto; padding:40px 16px 64px; }
+h1 { font-size:30px; line-height:1.2; margin:0 0 8px; }
+h2 { font-size:21px; margin:44px 0 10px; }
+p { margin:0 0 12px; }
+.sub { color:var(--muted); margin-bottom:20px; }
+.note { background:var(--soft); border-left:3px solid var(--acc); padding:10px 14px; color:var(--muted); font-size:14px; }
+.kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin:24px 0; }
+.kpi { border:1px solid var(--line); border-radius:8px; padding:14px; }
+.kpi b { display:block; font-size:26px; color:var(--acc); line-height:1.2; }
+.kpi span { font-size:14px; color:var(--muted); }
+img { width:100%; height:auto; border:1px solid var(--line); border-radius:8px; margin:8px 0 6px; }
+.cap { font-size:13px; color:var(--muted); margin-bottom:16px; }
+.tbl { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:14px; margin:8px 0 16px; }
+th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { font-weight:600; background:var(--soft); }
+td.bad { color:var(--acc); font-weight:600; }
+pre { background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:12px; overflow-x:auto; font-size:13px; }
+a { color:var(--acc); }
+ol li { margin-bottom:8px; }
+footer { margin-top:48px; padding-top:16px; border-top:1px solid var(--line); font-size:14px; color:var(--muted); }
+</style></head><body><main>
+<h1>VerifyBench: Benchmarking Identity Verification APIs</h1>
+<p class="sub">How I would benchmark verification APIs on latency and success rate, explain why verifications fail, and decide what to fix first. By Anisha Tiwary.</p>
+<p class="note">All data is simulated: 200,000 calls across 10 APIs for September 2026, with 4 problems planted to test whether the method finds them. It found all 4. Competitor figures are invented.</p>
+
+<div class="kpis">
+<div class="kpi"><b>2,786 ms</b><span>Passport OCR p95 vs a 2,000 ms target</span></div>
+<div class="kpi"><b>5 of 10</b><span>APIs below the 97% success standard</span></div>
+<div class="kpi"><b>~1,523</b><span>onboardings lost to 3 fixable causes in a month</span></div>
+<div class="kpi"><b>4 of 4</b><span>planted problems found by the method</span></div>
+</div>
+
+<h2>1. Latency: one API breaks its target</h2>
+<p>Passport OCR is the only API over its latency target, and 1,086 ms slower than the competitor at p95. 11.4% of its successful calls exceed the target. Every other API beats both its target and the competitor.</p>
+<img src="latency.png" alt="p95 latency as a percentage of target for each API; Passport OCR is the only one above 100%">
+<p class="cap">p95 of successful-call latency per API, as a share of its internal target.</p>
+
+<h2>2. Success rate: five APIs miss the standard</h2>
+<img src="success.png" alt="Success rate per API; five APIs fall below 97%">
+<div class="tbl"><table><tr><th>API</th><th>Calls</th><th>p50 ms</th><th>p95 ms</th><th>Target p95</th><th>Competitor p95</th><th>Success</th></tr><tr><td>Passport OCR</td><td>20,118</td><td>1,153</td><td class='bad'>2,786</td><td>2,000</td><td>1,700</td><td class='bad'>96.0%</td></tr><tr><td>Aadhaar OCR</td><td>19,903</td><td>899</td><td class=''>1,415</td><td>1,800</td><td>1,650</td><td class='bad'>93.0%</td></tr><tr><td>Bank Account Verify</td><td>19,963</td><td>1,512</td><td class=''>2,615</td><td>4,000</td><td>3,600</td><td class=''>97.0%</td></tr><tr><td>Liveness Check</td><td>20,198</td><td>601</td><td class=''>906</td><td>1,500</td><td>1,300</td><td class='bad'>93.3%</td></tr><tr><td>Face Match</td><td>19,990</td><td>349</td><td class=''>538</td><td>900</td><td>800</td><td class='bad'>94.0%</td></tr><tr><td>Driving Licence Verify</td><td>19,897</td><td>401</td><td class=''>655</td><td>1,200</td><td>1,100</td><td class='bad'>94.0%</td></tr><tr><td>Email Risk</td><td>20,100</td><td>150</td><td class=''>261</td><td>500</td><td>450</td><td class=''>98.8%</td></tr><tr><td>PAN Verify</td><td>19,874</td><td>181</td><td class=''>312</td><td>600</td><td>520</td><td class=''>98.5%</td></tr><tr><td>Mobile Intelligence</td><td>20,141</td><td>120</td><td class=''>207</td><td>400</td><td>380</td><td class=''>99.0%</td></tr><tr><td>Device Intelligence</td><td>19,816</td><td>90</td><td class=''>155</td><td>300</td><td>320</td><td class=''>99.2%</td></tr></table></div>
+<p>SQLite has no percentile function, so p50 and p95 come from window functions:</p>
+<pre>WITH ranked AS (
+  SELECT api, latency_ms,
+         ROW_NUMBER() OVER (PARTITION BY api ORDER BY latency_ms) AS rn,
+         COUNT(*)     OVER (PARTITION BY api) AS n
+  FROM api_calls WHERE status = 'success'
+)
+SELECT api,
+  MAX(CASE WHEN rn = CAST(0.50 * n AS INT) THEN latency_ms END) AS p50,
+  MAX(CASE WHEN rn = CAST(0.95 * n AS INT) THEN latency_ms END) AS p95
+FROM ranked GROUP BY api;</pre>
+
+<h2>3. Why did verifications fail?</h2>
+<p>Users who fail a verification complete onboarding 21% of the time, against 88% for users who pass. Cutting success rate by device, week and document language finds three clusters:</p>
+<img src="failures.png" alt="Failed calls by reason; orange reasons are fixable by the platform">
+<p class="cap">Orange: causes the platform can fix (capture, upstream, OCR coverage). Grey: user-side.</p>
+<div class="tbl"><table><tr><th>Where it fails</th><th>Success: segment vs rest</th><th>Calls</th><th>Onboardings lost</th><th>Likely cause</th></tr><tr><td>Face Match and Liveness on low-end Android</td><td>85.2% vs 96.2%</td><td>9,550</td><td>~701</td><td>Low light and blur from weak phone cameras</td></tr><tr><td>Driving Licence Verify, 15 to 21 Sep</td><td>82.1% vs 97.5%</td><td>4,561</td><td>~468</td><td>Government source registry timing out</td></tr><tr><td>Aadhaar OCR on Tamil and Bengali cards</td><td>82.3% vs 95.6%</td><td>3,989</td><td>~354</td><td>OCR model not trained on these scripts</td></tr></table></div>
+<img src="dl_weekly.png" alt="Driving Licence Verify success rate by week, dropping to 82.1% in week 3">
+<p class="cap">A weekly success-rate check catches an upstream outage like the Driving Licence registry drop in week 3.</p>
+<p>Client segment made no difference: Lending, Fintech, Gaming and E-commerce all sit at 96.2% to 96.3% success. The problem lives in the device, the document and the upstream source.</p>
+
+<h2>4. What I would fix first</h2>
+<ol>
+<li><b>Light and blur check before Face Match and Liveness upload</b> on low-end Android, with a retake prompt (Engineering). ~701 onboardings a month.</li>
+<li><b>Alert on a 3-point weekly success drop</b>, plus retry with backoff and a fallback source for registry timeouts (Engineering). ~468 onboardings in an outage week.</li>
+<li><b>Source and tag Tamil and Bengali Aadhaar cards</b>, then retrain OCR (Product, data). ~354 onboardings a month.</li>
+<li><b>Profile Passport OCR's slow tail</b> by document layout to close the gap to the competitor (Engineering).</li>
+<li><b>One weekly benchmark view for every API</b> using these checks (Product analytics).</li>
+</ol>
+
+<footer>
+Code, SQL and the full 6-page case study: <a href="https://github.com/Anisha-Tiwaryy/VerifyBench">github.com/Anisha-Tiwaryy/VerifyBench</a> (<a href="https://github.com/Anisha-Tiwaryy/VerifyBench/blob/main/CASE_STUDY.pdf">case study PDF</a>)<br>
+Anisha Tiwary · <a href="https://anisha-tiwaryy.github.io">anisha-tiwaryy.github.io</a> · <a href="https://www.linkedin.com/in/anisha-tiwary-94b89030a">LinkedIn</a>
+</footer>
+</main></body></html>
